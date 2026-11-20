@@ -9,10 +9,12 @@ import ssl
 
 ssl._create_default_https_context = ssl._create_unverified_context
 
-GIGACHAT_KEY = os.environ["GIGACHAT_KEY"]
+GIGACHAT_KEY = "".join(os.environ["GIGACHAT_KEY"].split())
 RSS_SOURCES = [
     "https://" + "www.sports.ru/rss/rubric.xml?s=209",
-    "https://" + "lenta.ru/rss/news/sport",
+    "https://" + "allboxing.ru/rss.xml",
+    "https://" + "valetudo.ru/mma/news?format=feed&type=rss",
+    "https://" + "mmafighting.com",
 ]
 HISTORY_FILE = "history.json"
 FEED_FILE = "feed.xml"
@@ -40,8 +42,8 @@ def rewrite_with_gigachat(token, title, summary):
         "Authorization": f"Bearer {token}",
     }
     prompt = (
-        "Ты редактор дерзкого и статусного спортивного канала «ПУТЬ ГОРЦА | LIVE» про ММА и грэпплинг. "
-        "Перепиши эту новость коротким, живым, цепляющим постом (до 500 символов) с характером гор, "
+        "Ты редактор дерзкого и статусного спортивного канала «ПУТЬ ГОРЦА | LIVE» про ММА, UFC и грэпплинг. "
+        "Если новость на английском — переведи на русский. Перепиши её коротким, живым, цепляющим постом (до 500 символов) с характером гор, "
         "уважением к бойцам и 2-3 уместными эмодзи. Без воды и ссылок. В конце добавь хэштеги #ММА #Грэпплинг #ПутьГорца.\n\n"
         f"Заголовок: {title}\nТекст: {summary[:800]}"
     )
