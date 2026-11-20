@@ -22,7 +22,7 @@ MUST_HAVE_WORDS = [
     "магомедшарипов", "садулаев", "сидаков", "угуев", "дагестан",
     "кавказ", "махачкал", "хасавюрт", "вольная борьба", "вольник",
     "грэпплинг", "adcc", "чимаев", "царукян", "имавов", "мухаммад",
-    "оливейра", "топурия", "двалишвили", "перейра", "аспиналл", "ufc", "aca"
+    "гаджиев", "магомедов", "абдулманап", "дагестанск"
 ]
 
 BANNED_WORDS = [
@@ -63,7 +63,7 @@ def rewrite_with_gigachat(token, title, summary):
         "СТРОГИЕ ПРАВИЛА:\n"
         "1. Никакой грязи, пошлости, упоминаний алкоголя, ставок, клубов, слухов о личной жизни и дешёвого трэш-тока.\n"
         "2. Пиши только о спорте, характере, дисциплине, схватках, подготовке и победах.\n"
-        "3. Стиль: сдержанный, мужской, горский, с уважением, без крикливой воды. Длина — 350-550 символов.\n"
+        "3. Стиль: сдержанный, мужской, горский, с уважением, без воды. Длина — 350-550 символов.\n"
         "4. Используй 2 строгих эмодзи (🦅, 🤼‍♂️, 🏆, 🏔). В конце поставь хэштеги #ПутьГорца #Дагестан #ММА #Борьба.\n"
         "Если эта новость не касается спорта или содержит грязь — ответь одним словом: SKIP\n\n"
         f"Заголовок: {title}\nТекст: {summary[:800]}"
@@ -76,8 +76,8 @@ def rewrite_with_gigachat(token, title, summary):
     req = urllib.request.Request(url, data=payload, headers=headers, method="POST")
     with urllib.request.urlopen(req, timeout=30) as resp:
         res = json.loads(resp.read().decode("utf-8"))
-        choices = res.get("choices")
-        return choices.get("message").get("content").strip()
+        first_choice = res.get("choices").pop(0)
+        return first_choice.get("message").get("content").strip()
 
 def is_clean_dag_sport(title, desc):
     text = (title + " " + desc).lower()
