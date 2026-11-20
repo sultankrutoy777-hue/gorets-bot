@@ -1,0 +1,34 @@
+name: Auto Post MMA News
+
+on:
+  schedule:
+    - cron: '0 7,12,17 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  run-bot:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Run AI News Bot
+        env:
+          GIGACHAT_KEY: ${{ secrets.GIGACHAT_KEY }}
+        run: python bot.py
+
+      - name: Save generated feed
+        run: |
+          git config user.name "Gorets AI Bot"
+          git config user.email "bot@gorets.local"
+          git add history.json feed.xml
+          git commit -m "New AI post" || exit 0
+          git push
