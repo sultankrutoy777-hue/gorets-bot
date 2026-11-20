@@ -15,12 +15,23 @@ RSS_SOURCES = [
     "https://" + "allboxing.ru/rss.xml",
     "https://" + "valetudo.ru/mma/news?format=feed&type=rss",
 ]
-KEYWORDS = [
-    "ufc", "мма", "mma", "бой", "боя", "бои", "грэпплинг", "борьб",
-    "aca", "pfl", "bellator", "adcc", "махачев", "хабиб", "анкалаев",
-    "царукян", "чимаев", "петр ян", "пётр ян", "волков", "павлович",
-    "умар", "усман", "евлоев", "нокаут", "сабмишн", "октагон", "пояс"
+
+MUST_HAVE_WORDS = [
+    "хабиб", "махачев", "нурмагомедов", "умар", "усман", "анкалаев",
+    "евлоев", "алискеров", "шара", "буллет", "рабаданов", "забит",
+    "магомедшарипов", "садулаев", "сидаков", "угуев", "дагестан",
+    "кавказ", "махачкал", "хасавюрт", "вольная борьба", "вольник",
+    "грэпплинг", "adcc", "чимаев", "царукян", "имавов", "мухаммад",
+    "оливейра", "топурия", "двалишвили", "перейра", "аспиналл", "ufc", "aca"
 ]
+
+BANNED_WORDS = [
+    "водк", "пив", "алкогол", "виски", "шампанск", "пьян", "казино",
+    "ставк", "букмекер", "секс", "интим", "голы", "обнажен", "стриптиз",
+    "онлифанс", "onlyfans", "порно", "измен", "любовниц", "эскорт",
+    "наркот", "травк", "марихуан", "драк в клубе", "ночной клуб", "поп-мма"
+]
+
 HISTORY_FILE = "history.json"
 FEED_FILE = "feed.xml"
 
@@ -47,25 +58,32 @@ def rewrite_with_gigachat(token, title, summary):
         "Authorization": f"Bearer {token}",
     }
     prompt = (
-        "Ты редактор дерзкого и статусного спортивного канала «ПУТЬ ГОРЦА | LIVE» про ММА, UFC и грэпплинг. "
-        "Перепиши эту новость коротким, живым, цепляющим постом (до 500 символов) с характером гор, "
-        "уважением к бойцам и 2-3 уместными эмодзи. Без воды и ссылок. В конце добавь хэштеги #ММА #Грэпплинг #ПутьГорца.\n\n"
+        "Ты главный редактор достойного, чистого и статусного спортивного канала «ПУТЬ ГОРЦА | LIVE» "
+        "о дагестанской школе борьбы, грэпплинге и ММА (Хабиб, Ислам Махачев, Умар Нурмагомедов, Анкалаев, Садулаев и др.).\n"
+        "СТРОГИЕ ПРАВИЛА:\n"
+        "1. Никакой грязи, пошлости, упоминаний алкоголя, ставок, клубов, слухов о личной жизни и дешёвого трэш-тока.\n"
+        "2. Пиши только о спорте, характере, дисциплине, схватках, подготовке и победах.\n"
+        "3. Стиль: сдержанный, мужской, горский, с уважением, без крикливой воды. Длина — 350-550 символов.\n"
+        "4. Используй 2 строгих эмодзи (🦅, 🤼‍♂️, 🏆, 🏔). В конце поставь хэштеги #ПутьГорца #Дагестан #ММА #Борьба.\n"
+        "Если эта новость не касается спорта или содержит грязь — ответь одним словом: SKIP\n\n"
         f"Заголовок: {title}\nТекст: {summary[:800]}"
     )
     payload = json.dumps({
         "model": "GigaChat",
         "messages": [{"role": "user", "content": prompt}],
-        "temperature": 0.7,
+        "temperature": 0.5,
     }).encode("utf-8")
     req = urllib.request.Request(url, data=payload, headers=headers, method="POST")
     with urllib.request.urlopen(req, timeout=30) as resp:
         res = json.loads(resp.read().decode("utf-8"))
         choices = res.get("choices")
-        return choices[0].get("message").get("content").strip()
+        return choices.get("message").get("content").strip()
 
-def is_mma_news(title, desc):
+def is_clean_dag_sport(title, desc):
     text = (title + " " + desc).lower()
-    return any(word in text for word in KEYWORDS)
+    if any(bad in text for bad in BANNED_WORDS):
+        return False
+    return any(good in text for good in MUST_HAVE_WORDS)
 
 def fetch_latest_news(posted_links):
     for rss_url in RSS_SOURCES:
@@ -77,8 +95,8 @@ def fetch_latest_news(posted_links):
                     link = (item.findtext("link") or "").strip()
                     title = (item.findtext("title") or "").strip()
                     desc = (item.findtext("description") or "").strip()
-                    if link and link not in posted_links and title and is_mma_news(title, desc):
-                        print("Найдена новость ММА:", title)
+                    if link and link not in posted_links and title and is_clean_dag_sport(title, desc):
+                        print("Отобрана чистая новость:", title)
                         return link, title, desc
         except Exception as e:
             print("RSS error:", rss_url, e)
@@ -89,7 +107,7 @@ def update_rss(posts):
     channel = ET.SubElement(rss, "channel")
     ET.SubElement(channel, "title").text = "ПУТЬ ГОРЦА | LIVE"
     ET.SubElement(channel, "link").text = "https://" + "sultankrutoy777-hue.github.io/gorets-bot/"
-    ET.SubElement(channel, "description").text = "Главные новости ММА и грэпплинга 24/7"
+    ET.SubElement(channel, "description").text = "Чистый спорт, школа борьбы, грэпплинг и ММА"
 
     for post in posts[:15]:
         item = ET.SubElement(channel, "item")
@@ -111,15 +129,15 @@ def main():
     if link:
         token = get_gigachat_token()
         ai_post = rewrite_with_gigachat(token, title, desc)
-        print("Готовый пост:\n", ai_post)
-
         data["links"].append(link)
-        data["posts"].insert(0, {
-            "id": str(uuid.uuid4()),
-            "title": title,
-            "text": ai_post,
-            "date": datetime.now(timezone.utc).strftime("%a, %d %b %Y %H:%M:%S +0000"),
-        })
+        if ai_post != "SKIP" and "SKIP" not in ai_post:
+            print("Готовый чистый пост:\n", ai_post)
+            data["posts"].insert(0, {
+                "id": str(uuid.uuid4()),
+                "title": title,
+                "text": ai_post,
+                "date": datetime.now(timezone.utc).strftime("%a, %d %b %Y %H:%M:%S +0000"),
+            })
 
     with open(HISTORY_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
