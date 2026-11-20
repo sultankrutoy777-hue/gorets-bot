@@ -14,7 +14,12 @@ RSS_SOURCES = [
     "https://" + "www.sports.ru/rss/rubric.xml?s=209",
     "https://" + "allboxing.ru/rss.xml",
     "https://" + "valetudo.ru/mma/news?format=feed&type=rss",
-    "https://" + "mmafighting.com",
+]
+KEYWORDS = [
+    "ufc", "мма", "mma", "бой", "боя", "бои", "грэпплинг", "борьб",
+    "aca", "pfl", "bellator", "adcc", "махачев", "хабиб", "анкалаев",
+    "царукян", "чимаев", "петр ян", "пётр ян", "волков", "павлович",
+    "умар", "усман", "евлоев", "нокаут", "сабмишн", "октагон", "пояс"
 ]
 HISTORY_FILE = "history.json"
 FEED_FILE = "feed.xml"
@@ -43,7 +48,7 @@ def rewrite_with_gigachat(token, title, summary):
     }
     prompt = (
         "Ты редактор дерзкого и статусного спортивного канала «ПУТЬ ГОРЦА | LIVE» про ММА, UFC и грэпплинг. "
-        "Если новость на английском — переведи на русский. Перепиши её коротким, живым, цепляющим постом (до 500 символов) с характером гор, "
+        "Перепиши эту новость коротким, живым, цепляющим постом (до 500 символов) с характером гор, "
         "уважением к бойцам и 2-3 уместными эмодзи. Без воды и ссылок. В конце добавь хэштеги #ММА #Грэпплинг #ПутьГорца.\n\n"
         f"Заголовок: {title}\nТекст: {summary[:800]}"
     )
@@ -55,7 +60,12 @@ def rewrite_with_gigachat(token, title, summary):
     req = urllib.request.Request(url, data=payload, headers=headers, method="POST")
     with urllib.request.urlopen(req, timeout=30) as resp:
         res = json.loads(resp.read().decode("utf-8"))
-        return res["choices"]["message"]["content"].strip()
+        choices = res.get("choices")
+        return choices[0].get("message").get("content").strip()
+
+def is_mma_news(title, desc):
+    text = (title + " " + desc).lower()
+    return any(word in text for word in KEYWORDS)
 
 def fetch_latest_news(posted_links):
     for rss_url in RSS_SOURCES:
@@ -67,8 +77,8 @@ def fetch_latest_news(posted_links):
                     link = (item.findtext("link") or "").strip()
                     title = (item.findtext("title") or "").strip()
                     desc = (item.findtext("description") or "").strip()
-                    if link and link not in posted_links and title:
-                        print("Найдена новость:", title)
+                    if link and link not in posted_links and title and is_mma_news(title, desc):
+                        print("Найдена новость ММА:", title)
                         return link, title, desc
         except Exception as e:
             print("RSS error:", rss_url, e)
