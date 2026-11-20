@@ -22,7 +22,7 @@ jobs:
 
       - name: Run AI News Bot
         env:
-          GIGACHAT_KEY: ${{ secrets.GIGACHAT_KEY }}
+          GIGACHAT_KEY: ${{ secrets.GIGACHAT_KEY_2 }}
         run: python bot.py
 
       - name: Save generated feed
