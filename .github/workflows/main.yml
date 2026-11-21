@@ -20,9 +20,15 @@ jobs:
         with:
           python-version: '3.11'
 
+      - name: Install Playwright
+        run: |
+          pip install playwright
+          playwright install chromium
+
       - name: Run AI News Bot
         env:
           GIGACHAT_KEY: ${{ secrets.GIGACHAT_KEY_2 }}
+          MAX_SESSION: ${{ secrets.MAX_SESSION }}
         run: python bot.py
 
       - name: Save generated feed
