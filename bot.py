@@ -6,10 +6,14 @@ import urllib.parse
 import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
 import ssl
+from playwright.sync_api import sync_playwright
 
 ssl._create_default_https_context = ssl._create_unverified_context
 
 GIGACHAT_KEY = "".join(os.environ["GIGACHAT_KEY"].split())
+MAX_SESSION = os.environ.get("MAX_SESSION", "").strip()
+CHANNEL_NAME = "ПУТЬ ГОРЦА"
+
 RSS_SOURCES = [
     "https://" + "www.sports.ru/rss/rubric.xml?s=209",
     "https://" + "allboxing.ru/rss.xml",
@@ -102,6 +106,56 @@ def fetch_latest_news(posted_links):
             print("RSS error:", rss_url, e)
     return None, None, None
 
+def post_to_max_web(post_text):
+    if not MAX_SESSION:
+        print("MAX_SESSION пустой, пропускаем отправку.")
+        return
+
+    session_data = json.loads(MAX_SESSION)
+    ls_data = session_data.get("ls", {})
+    cookies_str = session_data.get("cookies", "")
+    max_url = "https://" + "web.max.ru/"
+
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        context = browser.new_context(
+            viewport={"width": 1280, "height": 800},
+            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
+        )
+        if cookies_str:
+            cookie_list = []
+            for part in cookies_str.split(";"):
+                if "=" in part:
+                    k, v = part.strip().split("=", 1)
+                    cookie_list.append({"name": k, "value": v, "domain": "web.max.ru", "path": "/"})
+            if cookie_list:
+                context.add_cookies(cookie_list)
+
+        page = context.new_page()
+        print("1. Открываем web.max.ru...")
+        page.goto(max_url, wait_until="domcontentloaded")
+        page.evaluate("(items) => { for (const [k, v] of Object.entries(items)) { localStorage.setItem(k, v); } }", ls_data)
+        page.reload(wait_until="domcontentloaded")
+        page.wait_for_timeout(6000)
+
+        print("2. Ищем канал:", CHANNEL_NAME)
+        channel_el = page.get_by_text(CHANNEL_NAME, exact=False).first
+        channel_el.click(timeout=15000)
+        page.wait_for_timeout(2000)
+
+        print("3. Вставляем текст поста...")
+        input_box = page.locator("[contenteditable='true'], textarea").last
+        input_box.click(timeout=10000)
+        page.wait_for_timeout(500)
+        page.keyboard.insert_text(post_text)
+        page.wait_for_timeout(1000)
+
+        print("4. Отправляем пост...")
+        page.keyboard.press("Enter")
+        page.wait_for_timeout(4000)
+        print("ГОТОВО! Пост отправлен в канал MAX!")
+        browser.close()
+
 def update_rss(posts):
     rss = ET.Element("rss", version="2.0")
     channel = ET.SubElement(rss, "channel")
@@ -126,18 +180,33 @@ def main():
         data = {"links": [], "posts": []}
 
     link, title, desc = fetch_latest_news(set(data["links"]))
+    post_to_send = None
+
     if link:
         token = get_gigachat_token()
         ai_post = rewrite_with_gigachat(token, title, desc)
         data["links"].append(link)
         if ai_post != "SKIP" and "SKIP" not in ai_post:
-            print("Готовый чистый пост:\n", ai_post)
+            print("Сгенерирован новый чистый пост:\n", ai_post)
+            post_to_send = ai_post
             data["posts"].insert(0, {
                 "id": str(uuid.uuid4()),
                 "title": title,
                 "text": ai_post,
                 "date": datetime.now(timezone.utc).strftime("%a, %d %b %Y %H:%M:%S +0000"),
             })
+    elif data["posts"]:
+        print("Свежих новостей за последние минуты нет, берём последний готовый пост из базы для проверки...")
+        post_to_send = data["posts"].pop(0)["text"]
+        data["posts"].insert(0, {
+            "id": str(uuid.uuid4()),
+            "title": "Повторный тест",
+            "text": post_to_send,
+            "date": datetime.now(timezone.utc).strftime("%a, %d %b %Y %H:%M:%S +0000"),
+        })
+
+    if post_to_send:
+        post_to_max_web(post_to_send)
 
     with open(HISTORY_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
