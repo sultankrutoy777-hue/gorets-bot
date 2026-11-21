@@ -11,10 +11,9 @@ MAX_SESSION = os.environ.get("MAX_SESSION", "").strip()
 CHANNEL_NAME = "ПУТЬ ГОРЦА"
 
 RSS_SOURCES = [
-    "https://" + "www.sports.ru/rss/rubric.xml?s=209",
     "https://" + "allboxing.ru/rss.xml",
     "https://" + "valetudo.ru/mma/news?format=feed&type=rss",
-    "https://" + "://championat.com",
+    "https://" + "www.sports.ru/rss/rubric.xml?s=209",
 ]
 
 MUST_HAVE = [
@@ -22,7 +21,7 @@ MUST_HAVE = [
     "алискеров", "шара", "буллет", "рабаданов", "забит", "садулаев", "сидаков",
     "угуев", "дагестан", "кавказ", "махачкал", "хасавюрт", "вольная борьба",
     "вольник", "грэпплинг", "adcc", "чимаев", "царукян", "имавов", "мухаммад",
-    "гаджиев", "магомедов", "абдулманап", "дагестанск", "фсбр", "олимпи"
+    "гаджиев", "магомедов", "абдулманап", "дагестанск", "фсбр", "октагон", "ufc", "aca"
 ]
 
 TOP_WORDS = [
@@ -34,7 +33,8 @@ BANNED = [
     "водк", "пив", "алкогол", "виски", "шампанск", "пьян", "казино", "ставк",
     "букмекер", "секс", "интим", "голы", "обнажен", "стриптиз", "онлифанс",
     "onlyfans", "порно", "измен", "любовниц", "эскорт", "наркот", "травк",
-    "марихуан", "драк в клубе", "ночной клуб", "поп-мма"
+    "марихуан", "драк в клубе", "ночной клуб", "поп-мма", "хокке", "футбол",
+    "теннис", "баскетбол", "биатлон", "фигурн", "шайб", "кхл", "нхл", "мчм", "гретцки"
 ]
 
 HISTORY_FILE = "history.json"
@@ -59,12 +59,13 @@ def rewrite_ai(token, title, summary):
     url = "https://" + "gigachat.devices.sberbank.ru/api/v1/chat/completions"
     headers = {"Content-Type": "application/json", "Accept": "application/json", "User-Agent": "Mozilla/5.0", "Authorization": f"Bearer {token}"}
     prompt = (
-        "Ты редактор чистого статусного канала «ПУТЬ ГОРЦА | LIVE» о дагестанской школе борьбы, грэпплинге и ММА.\n"
-        f"{get_rubric()}\nПРАВИЛА: Без грязи, пошлости, алкоголя, ставок, клубов, слухов и трэш-тока. Только спорт и характер. "
-        "Сдержанный мужской стиль, 350-550 символов, 2 строгих эмодзи (🦅, 🤼‍♂️, 🏆, 🏔), в конце хэштеги #ПутьГорца #Дагестан #ММА #Борьба. "
-        f"Если новость не о спорте или грязная — ответь: SKIP\n\nЗаголовок: {title}\nТекст: {summary[:800]}"
+        "Ты редактор чистого статусного канала «ПУТЬ ГОРЦА | LIVE» ТОЛЬКО о дагестанской школе борьбы, грэпплинге и ММА.\n"
+        f"{get_rubric()}\nПРАВИЛА: Строго про ММА, UFC, вольную борьбу и грэпплинг. Без хоккея, футбола, политики, грязи, алкоголя, ставок и трэш-тока. "
+        "Сдержанный мужской стиль, 2 коротких абзаца (строго 400-550 символов). 2 строгих эмодзи (🦅, 🤼‍♂️, 🏆, 🏔), "
+        "в конце хэштеги #ПутьГорца #Дагестан #ММА #Борьба. Если новость не про ММА и не про борьбу — ответь: SKIP\n\n"
+        f"Заголовок: {title}\nТекст: {summary[:900]}"
     )
-    payload = json.dumps({"model": "GigaChat", "messages": [{"role": "user", "content": prompt}], "temperature": 0.55}).encode("utf-8")
+    payload = json.dumps({"model": "GigaChat", "messages": [{"role": "user", "content": prompt}], "temperature": 0.5}).encode("utf-8")
     with urllib.request.urlopen(urllib.request.Request(url, data=payload, headers=headers, method="POST"), timeout=30) as r:
         return json.loads(r.read().decode("utf-8")).get("choices").pop(0).get("message").get("content").strip()
 
@@ -72,15 +73,21 @@ def is_clean(title, desc):
     t = (title + " " + desc).lower()
     return not any(b in t for b in BANNED) and any(g in t for g in MUST_HAVE)
 
-def get_img_url(item, desc):
-    enc = item.find("enclosure")
-    if enc is not None and enc.get("url"):
-        return enc.get("url").strip()
-    for el in item.iter():
-        if el.tag.endswith("content") and el.get("url"):
-            return el.get("url").strip()
+def get_img_url(desc, link):
     m = re.search(r'<img[^>]+src=["\']([^"\']+)["\']', desc)
-    return m.group(1).strip() if m else ""
+    if m:
+        return m.group(1).strip()
+    try:
+        with urllib.request.urlopen(urllib.request.Request(link, headers={"User-Agent": "Mozilla/5.0"}), timeout=10) as r:
+            html = r.read().decode("utf-8", errors="ignore")
+            og = re.search(r'<meta[^>]+property=["\']og:image["\'][^>]+content=["\']([^"\']+)["\']', html)
+            if not og:
+                og = re.search(r'<meta[^>]+content=["\']([^"\']+)["\'][^>]+property=["\']og:image["\']', html)
+            if og:
+                return og.group(1).strip()
+    except Exception:
+        pass
+    return ""
 
 def download_img(url):
     if not url or not url.startswith("http"):
@@ -106,17 +113,17 @@ def fetch_best(posted):
                     tt = (it.findtext("title") or "").strip()
                     ds = (it.findtext("description") or "").strip()
                     if lk and lk not in posted and tt and is_clean(tt, ds):
-                        im = get_img_url(it, ds)
-                        pr = sum(2 for w in TOP_WORDS if w in (tt + " " + ds).lower()) + (1 if im else 0)
-                        cands.append({"pr": pr, "lk": lk, "tt": tt, "ds": ds, "im": im})
+                        pr = sum(2 for w in TOP_WORDS if w in (tt + " " + ds).lower())
+                        cands.append({"pr": pr, "lk": lk, "tt": tt, "ds": ds})
         except Exception:
             pass
     if not cands:
         return None, None, None, ""
     cands.sort(key=lambda x: x.get("pr"), reverse=True)
     b = cands.pop(0)
-    print("Выбрана топ-новость:", b.get("tt"))
-    return b.get("lk"), b.get("tt"), b.get("ds"), b.get("im")
+    im = get_img_url(b.get("ds"), b.get("lk"))
+    print("Выбрана топ-новость:", b.get("tt"), "| Фото:", im)
+    return b.get("lk"), b.get("tt"), b.get("ds"), im
 
 def post_max(text, img_path=None):
     if not MAX_SESSION:
@@ -140,16 +147,23 @@ def post_max(text, img_path=None):
         pg.wait_for_timeout(6000)
         pg.get_by_text(CHANNEL_NAME, exact=False).first.click(force=True, timeout=15000)
         pg.wait_for_timeout(3000)
+
+        photo_attached = False
         if img_path and os.path.exists(img_path):
             try:
-                fi = pg.locator("input[type='file']").first
+                fi = pg.locator("input[type='file'][accept*='image'], input[type='file']").last
                 if fi.count() > 0:
                     fi.set_input_files(img_path)
                     pg.wait_for_timeout(3000)
-            except Exception:
-                pass
-        pg.mouse.click(800, 760)
-        pg.wait_for_timeout(500)
+                    photo_attached = True
+                    print("Фото загружено!")
+            except Exception as e:
+                print("Фото не прикрепилось:", e)
+
+        if not photo_attached:
+            pg.mouse.click(800, 760)
+            pg.wait_for_timeout(500)
+
         pg.keyboard.insert_text(text)
         pg.wait_for_timeout(1000)
         pg.keyboard.press("Enter")
