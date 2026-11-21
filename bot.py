@@ -179,33 +179,21 @@ def main():
         data = {"links": [], "posts": []}
 
     link, title, desc = fetch_latest_news(set(data["links"]))
-    post_to_send = None
-
     if link:
         token = get_gigachat_token()
         ai_post = rewrite_with_gigachat(token, title, desc)
         data["links"].append(link)
         if ai_post != "SKIP" and "SKIP" not in ai_post:
             print("Сгенерирован новый чистый пост:\n", ai_post)
-            post_to_send = ai_post
+            post_to_max_web(ai_post)
             data["posts"].insert(0, {
                 "id": str(uuid.uuid4()),
                 "title": title,
                 "text": ai_post,
                 "date": datetime.now(timezone.utc).strftime("%a, %d %b %Y %H:%M:%S +0000"),
             })
-    elif data["posts"]:
-        print("Берём готовый чистый пост из базы для отправки...")
-        post_to_send = data["posts"].pop(0)["text"]
-        data["posts"].insert(0, {
-            "id": str(uuid.uuid4()),
-            "title": "Повторный тест",
-            "text": post_to_send,
-            "date": datetime.now(timezone.utc).strftime("%a, %d %b %Y %H:%M:%S +0000"),
-        })
-
-    if post_to_send:
-        post_to_max_web(post_to_send)
+    else:
+        print("Новых новостей пока нет, ждём следующего запуска.")
 
     with open(HISTORY_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
